@@ -5,15 +5,26 @@ package dao
 
 import (
 	"bytes"
-	"encoding/json"
+	"os"
 
-	"github.com/rm-hull/colorjson"
+	json "github.com/neilotoole/jsoncolor"
+	"github.com/neilotoole/jsoncolor/helper/fatihcolor"
 )
 
 // LogChan represents a channel for logs.
 type LogChan chan *LogItem
 
 var ItemEOF = new(LogItem)
+
+var buffer bytes.Buffer
+var enc = json.NewEncoder(&buffer)
+
+func init() {
+	fclrs := fatihcolor.DefaultColors()
+	enc.SetColors(fatihcolor.ToCoreColors(fclrs))
+	enc.SetEscapeHTML(false)
+	enc.SetSortMapKeys(false)
+}
 
 // LogItem represents a container log line.
 type LogItem struct {
@@ -99,7 +110,7 @@ func (l *LogItem) Render(paint string, showTime bool, showJson bool, bb *bytes.B
 }
 
 func colorizeJSON(text []byte, showJson bool) []byte {
-	if !showJson {
+	if !showJson || !json.IsColorTerminal(os.Stdout) {
 		return text
 	}
 	var obj map[string]interface{}
@@ -107,13 +118,11 @@ func colorizeJSON(text []byte, showJson bool) []byte {
 	if err != nil {
 		return text
 	}
-	f := colorjson.NewFormatter()
-	f.Indent = 0
-	f.ObjectSeparator = false
 
-	s, err := f.Marshal(obj)
+	err = enc.Encode(obj)
 	if err != nil {
 		return text
 	}
-	return append(s, '\n')
+
+	return buffer.Bytes()
 }
